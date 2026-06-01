@@ -1,0 +1,10 @@
+torch
+torchaudio
+edge-tts
+librosa
+scikit-learn
+skl2onnx
+onnxruntime
+numpy
+soundfile
+tqdm

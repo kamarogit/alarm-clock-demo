@@ -1,0 +1,10 @@
+.env
+*.pem
+alarm.db
+voice_log.jsonl
+venv/
+__pycache__/
+static/briefing_latest.mp3
+static/voice_response.mp3
+voice_persona.md
+=1.18.0
