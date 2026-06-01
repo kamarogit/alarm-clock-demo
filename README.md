@@ -26,7 +26,7 @@ alarm-clock/
 ├── briefing.py          # 朝のブリーフィング生成
 ├── database.py          # SQLAlchemy + SQLite
 ├── models.py            # DBモデル定義
-├── voice_persona.md     # アシスタントのペルソナ設定（★要カスタマイズ）
+├── voice_persona.md     # アシスタントのペルソナ設定（★要作成・リポジトリ非含、DEPLOY.md参照）
 ├── briefing.json        # ブリーフィング設定（enabled/time）
 ├── .env                 # 環境変数（.env.exampleを参照）
 ├── models/              # wakeword.onnx（カスタムモデル・予備）
