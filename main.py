@@ -17,12 +17,6 @@ ROOT_PATH = os.getenv("ROOT_PATH", "").rstrip("/")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Whisper・ウェイクワードモデルをバックグラウンドでプリロード
-    import asyncio
-    from whisper_stt import preload as whisper_preload
-    from wakeword import preload as wakeword_preload
-    asyncio.create_task(whisper_preload())
-    asyncio.create_task(wakeword_preload())
     yield
 
 
@@ -68,7 +62,7 @@ async def voice_ask(body: VoiceAskBody):
     print(f"[Ask] 質問: {body.question!r}", flush=True)
     from voice import answer_question, generate_voice_response
     answer, end_session = await answer_question(body.question)
-    audio_url = await generate_voice_response(answer)
+    audio_url = await generate_voice_response(answer, ROOT_PATH)
     return {"answer": answer, "audio_url": audio_url, "end_session": end_session}
 
 

@@ -257,7 +257,7 @@ def _clean_for_tts(text: str) -> str:
     return text.strip()
 
 
-async def generate_voice_response(text: str) -> str:
+async def generate_voice_response(text: str, root_path: str = "") -> str:
     communicate = edge_tts.Communicate(text, TTS_VOICE)
     await communicate.save(str(VOICE_AUDIO_PATH))
-    return f"/static/voice_response.mp3?t={int(time.time())}"
+    return f"{root_path}/static/voice_response.mp3?t={int(time.time())}"
