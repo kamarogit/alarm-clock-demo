@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#000000">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>AI目覚まし</title>
+<title>音声アシスタント</title>
 <link rel="manifest" href="{{ base_url }}/static/manifest.json">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -45,7 +45,7 @@ body {
   align-items: center;
   gap: 16px;
   transition: opacity 0.4s;
-  position: relative; /* pixel shift 用 */
+  position: relative;
 }
 
 #time {
@@ -61,323 +61,7 @@ body {
   letter-spacing: 1px;
 }
 
-#next-alarm {
-  font-size: 14px;
-  color: #444;
-  margin-top: 8px;
-}
-
-#ws-status {
-  position: fixed;
-  top: 12px;
-  right: 14px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #333;
-  transition: background 0.3s;
-}
-#ws-status.connected { background: #22c55e; }
-#ws-status.disconnected { background: #ef4444; }
-
-/* ── アラーム表示 ── */
-#alarm-view {
-  display: none;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 32px;
-  padding: 32px 24px;
-  text-align: center;
-  animation: fadeIn 0.5s ease;
-}
-
-#alarm-view.active { display: flex; }
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.97); }
-  to   { opacity: 1; transform: scale(1); }
-}
-
-#alarm-time {
-  font-size: clamp(56px, 18vw, 100px);
-  font-weight: 200;
-  letter-spacing: -2px;
-}
-
-#alarm-message {
-  font-size: clamp(18px, 4.5vw, 24px);
-  line-height: 1.7;
-  color: #ddd;
-  max-width: 340px;
-}
-
-.alarm-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  width: 100%;
-  max-width: 300px;
-}
-
-.btn-wakeup {
-  padding: 20px;
-  background: #fff;
-  color: #000;
-  border: none;
-  border-radius: 16px;
-  font-size: 20px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: transform 0.1s;
-}
-.btn-wakeup:active { transform: scale(0.97); }
-
-.btn-snooze {
-  padding: 16px;
-  background: transparent;
-  color: #666;
-  border: 1px solid #333;
-  border-radius: 16px;
-  font-size: 16px;
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
-}
-.btn-snooze:active { color: #999; border-color: #555; }
-
-/* 設定パネル */
-#settings-btn {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  width: 44px;
-  height: 44px;
-  background: transparent;
-  border: 1px solid #222;
-  border-radius: 50%;
-  color: #333;
-  font-size: 18px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: color 0.2s, border-color 0.2s;
-}
-#settings-btn:hover { color: #666; border-color: #444; }
-
-#settings-panel {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: #0a0a0a;
-  padding: 24px 20px;
-  overflow-y: auto;
-  z-index: 10;
-}
-#settings-panel.open { display: block; }
-
-#settings-panel h2 {
-  font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 24px;
-  color: #fff;
-}
-
-.alarm-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 0;
-  border-bottom: 1px solid #1a1a1a;
-}
-.alarm-item-info { flex: 1; }
-.alarm-item-time { font-size: 28px; font-weight: 200; }
-.alarm-item-name { font-size: 13px; color: #555; margin-top: 2px; }
-.alarm-item-rule { font-size: 12px; color: #3a3a3a; margin-top: 2px; }
-
-.toggle {
-  width: 48px;
-  height: 28px;
-  background: #222;
-  border-radius: 14px;
-  border: none;
-  cursor: pointer;
-  position: relative;
-  transition: background 0.2s;
-  flex-shrink: 0;
-}
-.toggle.on { background: #22c55e; }
-.toggle::after {
-  content: '';
-  position: absolute;
-  width: 22px;
-  height: 22px;
-  background: #fff;
-  border-radius: 50%;
-  top: 3px;
-  left: 3px;
-  transition: transform 0.2s;
-}
-.toggle.on::after { transform: translateX(20px); }
-
-.btn-del {
-  background: none;
-  border: none;
-  color: #333;
-  font-size: 20px;
-  cursor: pointer;
-  padding: 8px;
-  margin-left: 8px;
-  transition: color 0.15s;
-}
-.btn-del:hover { color: #ef4444; }
-
-/* 新規アラーム追加フォーム */
-.add-form {
-  margin-top: 24px;
-  padding: 20px;
-  background: #111;
-  border-radius: 14px;
-}
-.add-form h3 { font-size: 14px; color: #666; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.5px; }
-.add-form label { display: block; font-size: 12px; color: #555; margin-bottom: 4px; margin-top: 12px; }
-.add-form input, .add-form select {
-  width: 100%;
-  padding: 10px 12px;
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
-  color: #fff;
-  font-size: 16px;
-  outline: none;
-}
-.add-form input:focus, .add-form select:focus { border-color: #444; }
-
-.btn-add {
-  margin-top: 16px;
-  width: 100%;
-  padding: 14px;
-  background: #fff;
-  color: #000;
-  border: none;
-  border-radius: 10px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.btn-close-settings {
-  display: block;
-  margin-top: 16px;
-  width: 100%;
-  padding: 12px;
-  background: transparent;
-  border: 1px solid #222;
-  border-radius: 10px;
-  color: #444;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-/* テスト送信ボタン（開発用） */
-#test-btn {
-  position: fixed;
-  bottom: 20px;
-  left: 20px;
-  padding: 8px 14px;
-  background: transparent;
-  border: 1px solid #1a1a1a;
-  border-radius: 8px;
-  color: #2a2a2a;
-  font-size: 11px;
-  cursor: pointer;
-}
-
-/* ブリーフィング表示 */
-#briefing-view {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: #050510;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 28px;
-  padding: 40px 28px;
-  text-align: center;
-  z-index: 40;
-  animation: fadeIn 0.6s ease;
-}
-#briefing-view.active { display: flex; }
-
-#briefing-text {
-  font-size: clamp(16px, 4vw, 22px);
-  line-height: 1.9;
-  color: #ccc;
-  max-width: 360px;
-}
-
-#briefing-label {
-  font-size: 11px;
-  color: #333;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-}
-
-.briefing-buttons {
-  display: flex;
-  gap: 12px;
-}
-
-.btn-briefing-replay {
-  padding: 12px 20px;
-  background: transparent;
-  border: 1px solid #333;
-  border-radius: 12px;
-  color: #555;
-  font-size: 14px;
-  cursor: pointer;
-}
-.btn-briefing-close {
-  padding: 12px 28px;
-  background: #fff;
-  border: none;
-  border-radius: 12px;
-  color: #000;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-/* ブリーフィング設定 */
-.briefing-setting {
-  margin-top: 24px;
-  padding: 20px;
-  background: #0d0d0d;
-  border-radius: 14px;
-}
-.briefing-setting h3 { font-size: 14px; color: #666; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.5px; }
-.briefing-toggle-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-.briefing-toggle-row span { font-size: 14px; color: #888; }
-.btn-save-briefing {
-  margin-top: 12px;
-  width: 100%;
-  padding: 12px;
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
-  color: #888;
-  font-size: 14px;
-  cursor: pointer;
-}
-.btn-save-briefing:active { color: #fff; border-color: #444; }
-
-/* 音声アシスタント */
+/* ── マイクインジケーター ── */
 #mic-indicator {
   position: fixed;
   top: 12px;
@@ -388,8 +72,8 @@ body {
   background: #1a1a1a;
   transition: background 0.3s;
 }
-#mic-indicator.idle    { background: #1a3a1a; }
-#mic-indicator.waiting { background: #22c55e; animation: pulse 0.8s infinite; }
+#mic-indicator.idle       { background: #1a3a1a; }
+#mic-indicator.waiting    { background: #22c55e; animation: pulse 0.8s infinite; }
 #mic-indicator.processing { background: #3b82f6; animation: pulse 0.5s infinite; }
 
 @keyframes pulse {
@@ -397,6 +81,12 @@ body {
   50% { opacity: 0.3; }
 }
 
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ── 音声アシスタントオーバーレイ ── */
 #voice-overlay {
   display: none;
   position: fixed;
@@ -451,7 +141,7 @@ body {
   cursor: pointer;
 }
 
-/* マイクボタン */
+/* ── マイクボタン ── */
 #mic-btn {
   position: fixed;
   bottom: 20px;
@@ -472,7 +162,7 @@ body {
 }
 #mic-btn:active { background: #1a3a1a; border-color: #22c55e; }
 
-/* トースト通知 */
+/* ── トースト通知 ── */
 #toast {
   position: fixed;
   bottom: 60px;
@@ -490,57 +180,19 @@ body {
   white-space: nowrap;
 }
 #toast.show { opacity: 1; }
-
-/* サウンド選択 */
-.sound-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-.sound-row select { flex: 1; }
-.btn-preview {
-  padding: 10px 14px;
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
-  color: #888;
-  font-size: 14px;
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.btn-preview:active { color: #fff; }
 </style>
 </head>
 <body>
 
 <div id="toast"></div>
 
-<!-- MP3アラーム用 -->
-<audio id="alarm-audio" loop></audio>
-<!-- ブリーフィング音声用 -->
-<audio id="briefing-audio"></audio>
-
 <!-- スリープオーバーレイ（タップで解除） -->
 <div id="sleep-overlay" onclick="wakeScreen()"></div>
-
-<div id="ws-status"></div>
 
 <!-- 通常時計表示 -->
 <div id="clock-view">
   <div id="time">--:--</div>
   <div id="date"></div>
-  <div id="next-alarm"></div>
-</div>
-
-<!-- アラーム発火時表示 -->
-<div id="alarm-view">
-  <div id="alarm-time">--:--</div>
-  <div id="alarm-message"></div>
-  <div class="alarm-buttons">
-    <button class="btn-wakeup" onclick="wakeUp()">起きた</button>
-    <button class="btn-snooze" onclick="snooze(10)">あと10分</button>
-  </div>
 </div>
 
 <!-- 音声アシスタントオーバーレイ -->
@@ -558,113 +210,15 @@ body {
 <!-- 音声アシスタント応答音声 -->
 <audio id="voice-audio"></audio>
 
-<!-- ブリーフィング表示 -->
-<div id="briefing-view">
-  <div id="briefing-label">MORNING BRIEFING</div>
-  <div id="briefing-text"></div>
-  <div class="briefing-buttons">
-    <button class="btn-briefing-replay" onclick="replayBriefing()">再生</button>
-    <button class="btn-briefing-close" onclick="closeBriefing()">閉じる</button>
-  </div>
-</div>
-
 <!-- マイクボタン -->
 <button id="mic-btn" onclick="startVoice()">🎤</button>
 
-<!-- 設定ボタン -->
-<button id="settings-btn" onclick="openSettings()">⚙</button>
-<button id="test-btn" onclick="testFire()">test</button>
-
-<!-- 設定パネル -->
-<div id="settings-panel">
-  <h2>アラーム設定</h2>
-  <div id="alarm-list"></div>
-
-  <div class="add-form">
-    <h3>新規追加</h3>
-    <label>名前</label>
-    <input type="text" id="new-name" placeholder="平日朝" value="平日朝">
-    <label>時刻</label>
-    <input type="time" id="new-time" value="07:00">
-    <label>繰り返し</label>
-    <select id="new-rule">
-      <option value="weekday">平日のみ</option>
-      <option value="daily">毎日</option>
-      <option value="weekend">週末のみ</option>
-    </select>
-    <label>アラーム音</label>
-    <div class="sound-row">
-      <select id="new-sound">
-        <option value="beep">ビープ（標準）</option>
-        <option value="double">ダブルビープ</option>
-        <option value="rising">上昇音</option>
-        <option value="gentle">やさしい音</option>
-      </select>
-      <button class="btn-preview" onclick="previewSound(document.getElementById('new-sound').value)">試聴</button>
-    </div>
-    <button class="btn-add" onclick="addAlarm()">追加</button>
-  </div>
-
-  <div class="briefing-setting">
-    <h3>朝のブリーフィング</h3>
-    <div class="briefing-toggle-row">
-      <span>有効</span>
-      <button class="toggle" id="briefing-toggle" onclick="toggleBriefingEnabled()"></button>
-    </div>
-    <label>配信時刻</label>
-    <input type="time" id="briefing-time" value="07:30">
-    <button class="btn-save-briefing" onclick="saveBriefing()">保存</button>
-  </div>
-
-  <button class="btn-close-settings" onclick="closeSettings()">閉じる</button>
-</div>
-
 <script>
 const BASE = '{{ base_url }}';
-const DEVICE_ID = 'device-' + (localStorage.getItem('deviceId') || (() => {
-  const id = Math.random().toString(36).slice(2, 10);
-  localStorage.setItem('deviceId', id);
-  return id;
-})());
 
-let ws = null;
-let currentRunId = null;
-let audioCtx = null;
-let masterGain = null;
-let beepTimer = null;
 let sleepTimer = null;
-let previewCtx = null;
 const SLEEP_AFTER_MS = 3 * 60 * 1000;
 const PIXEL_SHIFT = 12;
-
-const BUILTIN_SOUNDS = {
-  beep:   'ビープ（標準）',
-  double: 'ダブルビープ',
-  rising: '上昇音',
-  gentle: 'やさしい音',
-};
-
-// ── WebSocket ────────────────────────────────────────────────────────────────
-
-function connect() {
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  const host = location.host;
-  ws = new WebSocket(`${proto}://${host}${BASE}/ws/${DEVICE_ID}`);
-
-  ws.onopen = () => setStatus('connected');
-  ws.onclose = () => { setStatus('disconnected'); setTimeout(connect, 3000); };
-  ws.onerror = () => ws.close();
-
-  ws.onmessage = e => {
-    const data = JSON.parse(e.data);
-    if (data.type === 'alarm_triggered') triggerAlarm(data.run_id, data.message, data.sound_type || 'beep');
-    if (data.type === 'morning_briefing') showBriefing(data.text, data.audio_url);
-  };
-}
-
-function setStatus(s) {
-  document.getElementById('ws-status').className = s;
-}
 
 // ── 時計 ─────────────────────────────────────────────────────────────────────
 
@@ -681,462 +235,6 @@ function updateClock() {
 
 setInterval(updateClock, 1000);
 updateClock();
-
-// 次回アラームを定期取得
-async function fetchNextAlarm() {
-  try {
-    const r = await fetch(`${BASE}/api/alarms/next`);
-    const data = await r.json();
-    const el = document.getElementById('next-alarm');
-    if (data.next) {
-      const dt = new Date(data.next.datetime);
-      const hh = String(dt.getHours()).padStart(2, '0');
-      const mm = String(dt.getMinutes()).padStart(2, '0');
-      el.textContent = `次のアラーム ${hh}:${mm}`;
-    } else {
-      el.textContent = 'アラームなし';
-    }
-  } catch {}
-}
-
-fetchNextAlarm();
-setInterval(fetchNextAlarm, 60000);
-
-// ── アラーム発火 ──────────────────────────────────────────────────────────────
-
-function triggerAlarm(run_id, message, sound_type = 'beep') {
-  currentRunId = run_id;
-  const now = new Date();
-  const hh = String(now.getHours()).padStart(2, '0');
-  const mm = String(now.getMinutes()).padStart(2, '0');
-  document.getElementById('alarm-time').textContent = `${hh}:${mm}`;
-  document.getElementById('alarm-message').textContent = message;
-  document.getElementById('clock-view').style.display = 'none';
-  document.getElementById('alarm-view').classList.add('active');
-  wakeScreen(true);
-  startSound(sound_type);
-  vibrate();
-}
-
-async function wakeUp() {
-  stopAlarm();
-  if (currentRunId !== null && currentRunId > 0) {
-    // HTTP POST で確実にACK（WSより信頼性が高い）
-    try { await fetch(`${BASE}/api/alarm-runs/${currentRunId}/ack`, { method: 'POST' }); } catch {}
-    // WSにも送る
-    if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'acknowledged', run_id: currentRunId }));
-  }
-  currentRunId = null;
-}
-
-async function snooze(minutes) {
-  stopAlarm();
-  if (currentRunId !== null && currentRunId > 0) {
-    try { await fetch(`${BASE}/api/alarm-runs/${currentRunId}/snooze?minutes=${minutes}`, { method: 'POST' }); } catch {}
-    if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'snooze', run_id: currentRunId, minutes }));
-  }
-  currentRunId = null;
-}
-
-function stopAlarm() {
-  stopSound();
-  document.getElementById('alarm-view').classList.remove('active');
-  document.getElementById('clock-view').style.display = 'flex';
-  fetchNextAlarm();
-  wakeScreen();
-}
-
-// ── 音声 ─────────────────────────────────────────────────────────────────────
-
-function startSound(soundType = 'beep') {
-  const isBuiltin = Object.prototype.hasOwnProperty.call(BUILTIN_SOUNDS, soundType);
-  if (!isBuiltin) {
-    // MP3ファイル再生
-    const audio = document.getElementById('alarm-audio');
-    audio.src = `${BASE}/static/sounds/${soundType}`;
-    audio.loop = true;
-    audio.volume = 1;
-    audio.play().catch(() => {});
-    return;
-  }
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  masterGain = audioCtx.createGain();
-  masterGain.gain.value = 1;
-  masterGain.connect(audioCtx.destination);
-  playPattern(soundType);
-  const intervals = { gentle: 2200, rising: 1800 };
-  beepTimer = setInterval(() => playPattern(soundType), intervals[soundType] || 1200);
-}
-
-function playPattern(type) {
-  switch (type) {
-    case 'double':  playDouble();  break;
-    case 'rising':  playRising();  break;
-    case 'gentle':  playGentle();  break;
-    default:        playBeep();    break;
-  }
-}
-
-function playBeep() {
-  if (!audioCtx || !masterGain) return;
-  [880, 1100].forEach((freq, i) => {
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.connect(gain); gain.connect(masterGain);
-    osc.type = 'sine';
-    osc.frequency.value = freq;
-    const t = audioCtx.currentTime + i * 0.15;
-    gain.gain.setValueAtTime(0.3, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
-    osc.start(t); osc.stop(t + 0.4);
-  });
-}
-
-function playDouble() {
-  if (!audioCtx || !masterGain) return;
-  [0, 0.14, 0.48, 0.62].forEach(offset => {
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.connect(gain); gain.connect(masterGain);
-    osc.type = 'square';
-    osc.frequency.value = 1000;
-    const t = audioCtx.currentTime + offset;
-    gain.gain.setValueAtTime(0.18, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.11);
-    osc.start(t); osc.stop(t + 0.11);
-  });
-}
-
-function playRising() {
-  if (!audioCtx || !masterGain) return;
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.connect(gain); gain.connect(masterGain);
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(440, audioCtx.currentTime);
-  osc.frequency.exponentialRampToValueAtTime(1400, audioCtx.currentTime + 1.3);
-  gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.5);
-  osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 1.5);
-}
-
-function playGentle() {
-  if (!audioCtx || !masterGain) return;
-  [0, 0.7].forEach(offset => {
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.connect(gain); gain.connect(masterGain);
-    osc.type = 'sine';
-    osc.frequency.value = 528;
-    const t = audioCtx.currentTime + offset;
-    gain.gain.setValueAtTime(0.22, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
-    osc.start(t); osc.stop(t + 0.6);
-  });
-}
-
-function stopSound() {
-  clearInterval(beepTimer);
-  beepTimer = null;
-  if (masterGain) {
-    try { masterGain.gain.setValueAtTime(0, audioCtx.currentTime); } catch {}
-    masterGain = null;
-  }
-  if (audioCtx) {
-    try { audioCtx.close(); } catch {}
-    audioCtx = null;
-  }
-  const audio = document.getElementById('alarm-audio');
-  audio.pause();
-  audio.src = '';
-}
-
-function previewSound(soundType) {
-  // 再生中のプレビューを止める
-  if (previewCtx) { try { previewCtx.close(); } catch {} previewCtx = null; }
-  const audio = document.getElementById('alarm-audio');
-  audio.pause(); audio.src = '';
-
-  const isBuiltin = Object.prototype.hasOwnProperty.call(BUILTIN_SOUNDS, soundType);
-  if (!isBuiltin) {
-    const a = new Audio(`${BASE}/static/sounds/${soundType}`);
-    a.play().catch(() => {});
-    return;
-  }
-  previewCtx = new (window.AudioContext || window.webkitAudioContext)();
-  const gain = previewCtx.createGain();
-  gain.gain.value = 1;
-  gain.connect(previewCtx.destination);
-  // playPattern は audioCtx/masterGain を使うので一時的にスワップ
-  const savedCtx = audioCtx, savedGain = masterGain;
-  audioCtx = previewCtx; masterGain = gain;
-  playPattern(soundType);
-  audioCtx = savedCtx; masterGain = savedGain;
-  setTimeout(() => {
-    if (previewCtx) { try { previewCtx.close(); } catch {} previewCtx = null; }
-  }, 2500);
-}
-
-function vibrate() {
-  if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 500]);
-}
-
-// ── 設定 ─────────────────────────────────────────────────────────────────────
-
-function openSettings() {
-  document.getElementById('settings-panel').classList.add('open');
-  loadAlarms();
-  loadSounds();
-  loadBriefingConfig();
-}
-
-function closeSettings() {
-  document.getElementById('settings-panel').classList.remove('open');
-  fetchNextAlarm();
-}
-
-const RULE_LABELS = { daily: '毎日', weekday: '平日', weekend: '週末' };
-
-async function loadAlarms() {
-  const r = await fetch(`${BASE}/api/alarms`);
-  const alarms = await r.json();
-  const el = document.getElementById('alarm-list');
-  if (alarms.length === 0) {
-    el.innerHTML = '<p style="color:#333;font-size:14px;padding:16px 0">アラームなし</p>';
-    return;
-  }
-  el.innerHTML = alarms.map(a => {
-    const soundLabel = BUILTIN_SOUNDS[a.sound_type] || a.sound_type || 'ビープ（標準）';
-    return `
-    <div class="alarm-item" id="alarm-item-${a.id}">
-      <div class="alarm-item-info">
-        <div class="alarm-item-time">${a.wake_time}</div>
-        <div class="alarm-item-name">${a.name}</div>
-        <div class="alarm-item-rule">${RULE_LABELS[a.repeat_rule] || a.repeat_rule} · ${soundLabel}</div>
-      </div>
-      <button class="toggle ${a.enabled ? 'on' : ''}" onclick="toggleAlarm(${a.id}, ${!a.enabled})"></button>
-      <button class="btn-del" onclick="deleteAlarm(${a.id})">✕</button>
-    </div>
-  `;}).join('');
-}
-
-async function toggleAlarm(id, enabled) {
-  await fetch(`${BASE}/api/alarms/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ enabled }),
-  });
-  loadAlarms();
-}
-
-async function deleteAlarm(id) {
-  if (!confirm('削除しますか？')) return;
-  await fetch(`${BASE}/api/alarms/${id}`, { method: 'DELETE' });
-  loadAlarms();
-}
-
-async function addAlarm() {
-  const name = document.getElementById('new-name').value.trim() || '新しいアラーム';
-  const wake_time = document.getElementById('new-time').value;
-  const repeat_rule = document.getElementById('new-rule').value;
-  const sound_type = document.getElementById('new-sound').value;
-  if (!wake_time) return alert('時刻を入力してください');
-  await fetch(`${BASE}/api/alarms`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, wake_time, repeat_rule, sound_type }),
-  });
-  document.getElementById('new-name').value = '平日朝';
-  document.getElementById('new-time').value = '07:00';
-  loadAlarms();
-}
-
-async function loadSounds() {
-  try {
-    const r = await fetch(`${BASE}/api/sounds`);
-    const data = await r.json();
-    const sel = document.getElementById('new-sound');
-    const current = sel.value;
-    sel.innerHTML = '';
-    // ビルトイン
-    Object.entries(BUILTIN_SOUNDS).forEach(([val, label]) => {
-      const opt = document.createElement('option');
-      opt.value = val; opt.textContent = label;
-      sel.appendChild(opt);
-    });
-    // MP3ファイル
-    if (data.files && data.files.length > 0) {
-      const grp = document.createElement('optgroup');
-      grp.label = 'MP3ファイル';
-      data.files.forEach(f => {
-        const opt = document.createElement('option');
-        opt.value = f;
-        opt.textContent = f.replace(/\.(mp3|ogg|wav)$/i, '');
-        grp.appendChild(opt);
-      });
-      sel.appendChild(grp);
-    }
-    if (current) sel.value = current;
-  } catch {}
-}
-
-// ── テスト ────────────────────────────────────────────────────────────────────
-
-async function testFire() {
-  await fetch(`${BASE}/api/test/fire`, { method: 'POST' });
-}
-
-// ── ブリーフィング ─────────────────────────────────────────────────────────────
-
-let _briefingText = '';
-let _speechUnlocked = false;
-let _pendingTTS = null;
-let _pendingTTSCallback = null;
-let _briefingAutoCloseTimer = null;
-
-const BRIEFING_AUTO_CLOSE_DELAY = 5000; // 読み上げ終了後5秒で自動クローズ
-
-function _scheduleBriefingAutoClose() {
-  _clearBriefingAutoClose();
-  _briefingAutoCloseTimer = setTimeout(closeBriefing, BRIEFING_AUTO_CLOSE_DELAY);
-}
-
-function _clearBriefingAutoClose() {
-  if (_briefingAutoCloseTimer) {
-    clearTimeout(_briefingAutoCloseTimer);
-    _briefingAutoCloseTimer = null;
-  }
-}
-
-// モバイルブラウザはユーザー操作なしにTTSが使えないため、最初のタッチでアンロック
-function _unlockSpeech() {
-  if (_speechUnlocked || !window.speechSynthesis) return;
-  const utter = new SpeechSynthesisUtterance(' ');
-  utter.volume = 0;
-  speechSynthesis.speak(utter);
-  _speechUnlocked = true;
-  if (_pendingTTS) {
-    const text = _pendingTTS;
-    const cb = _pendingTTSCallback;
-    _pendingTTS = null;
-    _pendingTTSCallback = null;
-    setTimeout(() => speakText(text, cb), 300);
-  }
-}
-document.addEventListener('touchstart', _unlockSpeech, { passive: true });
-document.addEventListener('click', _unlockSpeech, { once: true });
-
-function showBriefing(text, audioUrl) {
-  _briefingText = text;
-  document.getElementById('briefing-text').textContent = text;
-  document.getElementById('briefing-view').classList.add('active');
-  wakeScreen(true);
-  _clearBriefingAutoClose();
-  if (audioUrl) {
-    const audio = document.getElementById('briefing-audio');
-    audio.src = audioUrl;
-    audio.addEventListener('ended', _scheduleBriefingAutoClose, { once: true });
-    audio.play().catch(() => {});
-  } else if (_speechUnlocked) {
-    speakText(text, _scheduleBriefingAutoClose);
-  } else {
-    _pendingTTS = text;
-    _pendingTTSCallback = _scheduleBriefingAutoClose;
-  }
-}
-
-function closeBriefing() {
-  _clearBriefingAutoClose();
-  document.getElementById('briefing-view').classList.remove('active');
-  const audio = document.getElementById('briefing-audio');
-  audio.pause();
-  audio.currentTime = 0;
-  if (window.speechSynthesis) speechSynthesis.cancel();
-  _pendingTTS = null;
-  _pendingTTSCallback = null;
-  wakeScreen();
-}
-
-function replayBriefing() {
-  _clearBriefingAutoClose();
-  const audio = document.getElementById('briefing-audio');
-  if (audio.src) {
-    audio.removeEventListener('ended', _scheduleBriefingAutoClose);
-    audio.addEventListener('ended', _scheduleBriefingAutoClose, { once: true });
-    audio.currentTime = 0;
-    audio.play().catch(() => {});
-  } else {
-    speakText(_briefingText, _scheduleBriefingAutoClose);
-  }
-}
-
-function speakText(text, onEnd) {
-  // Fully Kiosk Browser: ネイティブAndroid TTSを優先使用
-  if (window.fully && typeof fully.speak === 'function') {
-    try {
-      fully.setTextToSpeechLocale('ja_JP');
-      fully.setTextToSpeechSpeed(0.88);
-      if (onEnd) {
-        window._briefingTTSCallback = onEnd;
-        fully.bind('textToSpeechCompleted',
-          'if(window._briefingTTSCallback){var cb=window._briefingTTSCallback;window._briefingTTSCallback=null;cb();}');
-      }
-      fully.speak(text);
-      return;
-    } catch {}
-  }
-  // 標準 Web Speech API（PC・通常ブラウザ用）
-  if (!window.speechSynthesis) return;
-  speechSynthesis.cancel();
-  const utter = new SpeechSynthesisUtterance(text);
-  utter.lang = 'ja-JP';
-  utter.rate = 0.88;
-  utter.pitch = 1.0;
-  if (onEnd) utter.onend = onEnd;
-  const doSpeak = () => {
-    const voices = speechSynthesis.getVoices();
-    const jaVoice = voices.find(v => v.lang.startsWith('ja'));
-    if (jaVoice) utter.voice = jaVoice;
-    speechSynthesis.speak(utter);
-  };
-  if (speechSynthesis.getVoices().length === 0) {
-    speechSynthesis.addEventListener('voiceschanged', doSpeak, { once: true });
-  } else {
-    doSpeak();
-  }
-}
-
-// ブリーフィング設定
-
-let _briefingEnabled = true;
-
-async function loadBriefingConfig() {
-  try {
-    const r = await fetch(`${BASE}/api/briefing`);
-    const data = await r.json();
-    _briefingEnabled = data.enabled;
-    document.getElementById('briefing-toggle').classList.toggle('on', data.enabled);
-    document.getElementById('briefing-time').value = data.time;
-  } catch {}
-}
-
-function toggleBriefingEnabled() {
-  _briefingEnabled = !_briefingEnabled;
-  document.getElementById('briefing-toggle').classList.toggle('on', _briefingEnabled);
-}
-
-async function saveBriefing() {
-  const time = document.getElementById('briefing-time').value;
-  await fetch(`${BASE}/api/briefing`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ enabled: _briefingEnabled, time }),
-  });
-  const btn = document.getElementById('briefing-save-btn') || document.querySelector('.btn-save-briefing');
-  const orig = btn.textContent;
-  btn.textContent = '保存しました';
-  setTimeout(() => { btn.textContent = orig; }, 1500);
-}
 
 // ── トースト ─────────────────────────────────────────────────────────────────
 
@@ -1227,12 +325,6 @@ async function _recordingLoop() {
     if (_paused || voiceState !== 'idle') {
       await new Promise(r => setTimeout(r, 200));
       continue;
-    }
-    if (document.getElementById('alarm-view').classList.contains('active')) {
-      await new Promise(r => setTimeout(r, 500)); continue;
-    }
-    if (document.getElementById('briefing-view').classList.contains('active')) {
-      await new Promise(r => setTimeout(r, 500)); continue;
     }
     // VAD: 音声レベルが閾値以下なら録音せずスキップ（CPUゼロ）
     if (_getRMS() < VAD_THRESHOLD) {
@@ -1452,16 +544,8 @@ function wakeScreen(keepOn = false) {
 }
 
 function sleepScreen() {
-  // アラーム中はスリープしない
-  if (document.getElementById('alarm-view').classList.contains('active')) return;
   document.getElementById('sleep-overlay').classList.remove('hidden');
   clearTimeout(sleepTimer);
-}
-
-// ── 起動 ─────────────────────────────────────────────────────────────────────
-
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register(`${BASE}/static/sw.js`);
 }
 
 // ── マイクボタン位置: 横向き左右どちらでも同じ物理位置に固定 ──────────────────
@@ -1473,8 +557,6 @@ function _updateMicPosition() {
   if (isLandscape) {
     btn.style.top = '50%';
     btn.style.bottom = 'auto';
-    // 90°: portrait右が画面上 → ボタンを右端に
-    // 270°: portrait左が画面上 → ボタンを左端に（物理位置を揃える）
     if (angle === 90 || angle === -90) {
       btn.style.right = '20px'; btn.style.left = 'auto';
       btn.style.transform = 'translateY(-50%)';
@@ -1493,7 +575,12 @@ window.addEventListener('orientationchange', _updateMicPosition);
 if (screen.orientation) screen.orientation.addEventListener('change', _updateMicPosition);
 _updateMicPosition();
 
-connect();
+// ── 起動 ─────────────────────────────────────────────────────────────────────
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register(`${BASE}/static/sw.js`);
+}
+
 initVoice();
 // 起動直後はスリープ状態（タップで起こす）
 sleepScreen();
