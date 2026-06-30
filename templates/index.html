@@ -263,6 +263,8 @@ let _silenceTimer = null;
 let _paused = false;
 let _looping = false;
 let _srRef = null;
+let _speechRetryCount = 0;
+const MAX_SPEECH_RETRY = 3;
 
 function _getRMS() {
   if (!_analyser) return 1;
@@ -334,6 +336,8 @@ async function _recordingLoop() {
     const blob = await _recordSegment(SEGMENT_MS);
     if (myId !== _loopId) break;
     if (blob.size >= 3000) await _checkWakeWord(blob);
+    // ウェイクワード未検出時のクールダウン（連続API呼び出し防止）
+    await new Promise(r => setTimeout(r, 800));
   }
 }
 
@@ -369,6 +373,7 @@ async function _checkWakeWord(blob) {
   fetch(`${BASE}/api/voice/session/clear`, { method: 'POST' }).catch(() => {});
 
   _sessionText = '';
+  _speechRetryCount = 0;
   document.getElementById('voice-transcript').textContent = '話しかけてください...';
   setTimeout(_startWebSpeech, 600);
 }
@@ -401,9 +406,15 @@ function _startWebSpeech() {
     _srRef = null;
     if (voiceState !== 'session') return;
     if (_sessionText.trim().length >= 2) {
+      _speechRetryCount = 0;
       _submitCommand();
     } else {
-      // 短すぎる/空 → セッションを継続して再度聞く
+      _speechRetryCount++;
+      if (_speechRetryCount >= MAX_SPEECH_RETRY) {
+        _speechRetryCount = 0;
+        cancelVoice();
+        return;
+      }
       _sessionText = '';
       document.getElementById('voice-transcript').textContent = '続けてどうぞ...';
       setTimeout(_startWebSpeech, 300);
@@ -414,7 +425,12 @@ function _startWebSpeech() {
     _srRef = null;
     if (e.error === 'not-allowed') { showToast('マイク権限エラー'); cancelVoice(); return; }
     if (voiceState !== 'session') return;
-    // no-speech などは再起動して継続
+    _speechRetryCount++;
+    if (_speechRetryCount >= MAX_SPEECH_RETRY) {
+      _speechRetryCount = 0;
+      cancelVoice();
+      return;
+    }
     _sessionText = '';
     document.getElementById('voice-transcript').textContent = '続けてどうぞ...';
     setTimeout(_startWebSpeech, 300);
