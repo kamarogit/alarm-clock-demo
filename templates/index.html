@@ -247,142 +247,38 @@ function showToast(msg, duration = 3000) {
   _toastTimer = setTimeout(() => el.classList.remove('show'), duration);
 }
 
-// ── 音声アシスタント (Whisperウェイクワード + Web Speech APIコマンド) ────────────
-// idle:    MediaRecorder+Whisper でウェイクワード検出（通知音なし）
-// session: Web Speech API で質問受付（高精度、通知音は1回だけ）
+// ── 音声アシスタント（ボタン起動 → Web Speech API → 無音で自動送信）────────────
 
-const WAKE_WORDS = ['ねえクロード', 'ねークロード', 'ねぇクロード', 'ねクロード', 'ねえ、クロード', 'ねぇ、クロード', 'クロード'];
-const SEGMENT_MS = 2000;
-const VAD_THRESHOLD = 0.015; // RMS閾値: これ以下は無音とみなしWhisperをスキップ
 let voiceState = 'idle'; // idle / session / processing / responding
-let mediaStream = null;
-let _analyser = null;
-let _loopId = 0;       // ループ多重起動防止
 let _sessionText = '';
 let _silenceTimer = null;
-let _paused = false;
-let _looping = false;
 let _srRef = null;
-let _speechRetryCount = 0;
-const MAX_SPEECH_RETRY = 3;
 
-function _getRMS() {
-  if (!_analyser) return 1;
-  const buf = new Float32Array(_analyser.fftSize);
-  _analyser.getFloatTimeDomainData(buf);
-  let sum = 0;
-  for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
-  return Math.sqrt(sum / buf.length);
-}
-
-async function _setupStream() {
-  mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  const audioCtx = new AudioContext();
-  const source = audioCtx.createMediaStreamSource(mediaStream);
-  _analyser = audioCtx.createAnalyser();
-  _analyser.fftSize = 1024;
-  source.connect(_analyser);
-}
-
-async function initVoice() {
-  try {
-    await _setupStream();
-    _looping = true;
-    _recordingLoop();
-    setMicState('idle');
-    showToast('「ねえクロード」で起動します');
-  } catch (e) {
-    showToast('マイクエラー: ' + e.message);
-    document.getElementById('mic-btn').style.display = 'none';
+// マイクボタン: タップでセッション開始
+function startVoice() {
+  if (voiceState === 'processing' || voiceState === 'responding') return;
+  if (voiceState === 'session') {
+    // 再タップで即送信
+    if (_srRef) { try { _srRef.stop(); } catch {} }
+    else _submitCommand();
+    return;
   }
-}
-
-// idle終了時にマイクを再取得してループを再起動
-async function _restartStream() {
-  try {
-    await _setupStream();
-    _recordingLoop();
-  } catch (e) {
-    showToast('マイク再起動失敗: ' + e.message);
-  }
-}
-
-function _recordSegment(ms) {
-  return new Promise(resolve => {
-    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-      ? 'audio/webm;codecs=opus' : 'audio/webm';
-    const mr = new MediaRecorder(mediaStream, { mimeType });
-    const chunks = [];
-    mr.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-    mr.onstop = () => resolve(new Blob(chunks, { type: mimeType }));
-    mr.start();
-    setTimeout(() => { try { mr.stop(); } catch {} }, ms);
-  });
-}
-
-// Whisperによるウェイクワード検出ループ（idle時のみ動作）
-async function _recordingLoop() {
-  const myId = ++_loopId; // このループのID（古いループを自動終了させる）
-  while (_looping && myId === _loopId && mediaStream && mediaStream.active) {
-    if (_paused || voiceState !== 'idle') {
-      await new Promise(r => setTimeout(r, 200));
-      continue;
-    }
-    // VAD: 音声レベルが閾値以下なら録音せずスキップ（CPUゼロ）
-    if (_getRMS() < VAD_THRESHOLD) {
-      await new Promise(r => setTimeout(r, 100));
-      continue;
-    }
-    const blob = await _recordSegment(SEGMENT_MS);
-    if (myId !== _loopId) break;
-    if (blob.size >= 3000) await _checkWakeWord(blob);
-    // ウェイクワード未検出時のクールダウン（連続API呼び出し防止）
-    await new Promise(r => setTimeout(r, 800));
-  }
-}
-
-async function _checkWakeWord(blob) {
-  // 深夜（1時〜6時）はウェイクワード自動検出を抑制
-  const hour = new Date().getHours();
-  if (hour >= 1 && hour < 6) return;
-
-  let text = '';
-  try {
-    const fd = new FormData();
-    fd.append('audio', blob, 'segment.webm');
-    const r = await fetch(`${BASE}/api/voice/transcribe`, { method: 'POST', body: fd });
-    const data = await r.json();
-    text = (data.text || '').trim();
-  } catch { return; }
-
-  if (!text || voiceState !== 'idle') return;
-  const wakeWord = WAKE_WORDS.find(w => text.includes(w));
-  if (!wakeWord) return;
-
   voiceState = 'session';
-  _paused = true;
   setMicState('waiting');
   showVoiceOverlay();
   wakeScreen(true);
-
-  // マイクを一度解放 → Web Speech API起動時の通知音が「聞いてるよ」の合図になる
-  if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
-  _analyser = null;
-
-  // 新しいセッション開始: 会話履歴をリセット
-  fetch(`${BASE}/api/voice/session/clear`, { method: 'POST' }).catch(() => {});
-
   _sessionText = '';
-  _speechRetryCount = 0;
+  fetch(`${BASE}/api/voice/session/clear`, { method: 'POST' }).catch(() => {});
   document.getElementById('voice-transcript').textContent = '話しかけてください...';
-  setTimeout(_startWebSpeech, 600);
+  setTimeout(_startWebSpeech, 200);
 }
 
-// Web Speech API（1セッション・高精度）で質問を受け付ける
+// Web Speech API で音声認識 → 無音になったら自動送信
 function _startWebSpeech() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) {
-    _silenceTimer = setTimeout(cancelVoice, 8000);
+    showToast('このブラウザは音声認識に対応していません');
+    cancelVoice();
     return;
   }
   const sr = new SR();
@@ -402,22 +298,14 @@ function _startWebSpeech() {
       (_sessionText + (interim ? ' ' + interim : '')).trim() || '話しかけてください...';
   };
 
+  // 無音検出 → テキストがあれば自動送信、なければキャンセル
   sr.onend = () => {
     _srRef = null;
     if (voiceState !== 'session') return;
     if (_sessionText.trim().length >= 2) {
-      _speechRetryCount = 0;
       _submitCommand();
     } else {
-      _speechRetryCount++;
-      if (_speechRetryCount >= MAX_SPEECH_RETRY) {
-        _speechRetryCount = 0;
-        cancelVoice();
-        return;
-      }
-      _sessionText = '';
-      document.getElementById('voice-transcript').textContent = '続けてどうぞ...';
-      setTimeout(_startWebSpeech, 300);
+      cancelVoice();
     }
   };
 
@@ -425,20 +313,13 @@ function _startWebSpeech() {
     _srRef = null;
     if (e.error === 'not-allowed') { showToast('マイク権限エラー'); cancelVoice(); return; }
     if (voiceState !== 'session') return;
-    _speechRetryCount++;
-    if (_speechRetryCount >= MAX_SPEECH_RETRY) {
-      _speechRetryCount = 0;
-      cancelVoice();
-      return;
-    }
-    _sessionText = '';
-    document.getElementById('voice-transcript').textContent = '続けてどうぞ...';
-    setTimeout(_startWebSpeech, 300);
+    cancelVoice();
   };
 
   try {
     sr.start();
-    _silenceTimer = setTimeout(() => { try { sr.stop(); } catch {} }, 12000);
+    // 最大15秒でタイムアウト
+    _silenceTimer = setTimeout(() => { try { sr.stop(); } catch {} }, 15000);
   } catch { cancelVoice(); }
 }
 
@@ -464,7 +345,7 @@ async function _submitCommand() {
     const data = await r.json();
 
     voiceState = 'responding';
-    document.getElementById('voice-state-label').textContent = 'クロード';
+    document.getElementById('voice-state-label').textContent = '返答中';
     document.getElementById('voice-mic-icon').textContent = '🔊';
     document.getElementById('voice-response').textContent = data.answer;
 
@@ -474,10 +355,9 @@ async function _submitCommand() {
     audio.onended = () => {
       setTimeout(() => {
         if (data.end_session) {
-          // LLMが会話終了と判断
           cancelVoice();
         } else {
-          // 会議モード: 続けてどうぞ
+          // 続けて聞く
           voiceState = 'session';
           _sessionText = '';
           setMicState('waiting');
@@ -492,39 +372,16 @@ async function _submitCommand() {
   } catch { cancelVoice(); }
 }
 
-// マイクボタン: セッション開始 or 即送信
-function startVoice() {
-  if (voiceState === 'processing' || voiceState === 'responding') return;
-  if (voiceState === 'session') {
-    clearTimeout(_silenceTimer);
-    if (_srRef) { try { _srRef.stop(); } catch {} }
-    else _submitCommand();
-    return;
-  }
-  voiceState = 'session';
-  _paused = true;
-  setMicState('waiting');
-  showVoiceOverlay();
-  wakeScreen(true);
-  _sessionText = '';
-  if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
-  _analyser = null;
-  setTimeout(_startWebSpeech, 300);
-}
-
 function cancelVoice() {
   clearTimeout(_silenceTimer);
   if (_srRef) { try { _srRef.stop(); } catch {} _srRef = null; }
   _sessionText = '';
-  _paused = false;
   voiceState = 'idle';
   setMicState('idle');
   closeVoiceOverlay();
   const audio = document.getElementById('voice-audio');
   audio.pause(); audio.src = '';
   wakeScreen();
-  // TTS音声がマイクに回り込まないよう3秒待ってからWhisperループ再起動
-  setTimeout(_restartStream, 3000);
 }
 
 function showVoiceOverlay() {
@@ -597,7 +454,7 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register(`${BASE}/static/sw.js`);
 }
 
-initVoice();
+setMicState('idle');
 // 起動直後はスリープ状態（タップで起こす）
 sleepScreen();
 </script>
