@@ -2,7 +2,8 @@
 音声文字起こし
 
 STT_BACKEND 環境変数で切り替え:
-  groq   : Groq Whisper API（推奨・whisper-large-v3・無料枠あり）
+  openai : OpenAI Whisper API（whisper-1）
+  groq   : Groq Whisper API（whisper-large-v3・無料枠あり）
   local  : faster-whisper ローカル（GPU環境向け）
 """
 
@@ -12,27 +13,42 @@ import os
 
 logger = logging.getLogger(__name__)
 
-_STT_BACKEND = os.getenv("STT_BACKEND", "groq").lower()
+_STT_BACKEND = os.getenv("STT_BACKEND", "openai").lower()
 
-# ── Groq API ──────────────────────────────────────────────────────────────────
+# ── OpenAI / Groq 共通（互換API） ─────────────────────────────────────────────
 
-async def _transcribe_groq(audio_bytes: bytes) -> str:
+_STT_CONFIG = {
+    "openai": {
+        "url": "https://api.openai.com/v1/audio/transcriptions",
+        "key_env": "OPENAI_API_KEY",
+        "model": "whisper-1",
+    },
+    "groq": {
+        "url": "https://api.groq.com/openai/v1/audio/transcriptions",
+        "key_env": "GROQ_API_KEY",
+        "model": "whisper-large-v3",
+    },
+}
+
+
+async def _transcribe_api(audio_bytes: bytes) -> str:
     import httpx
-    api_key = os.getenv("GROQ_API_KEY", "")
+    config = _STT_CONFIG[_STT_BACKEND]
+    api_key = os.getenv(config["key_env"], "")
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
-            "https://api.groq.com/openai/v1/audio/transcriptions",
+            config["url"],
             headers={"Authorization": f"Bearer {api_key}"},
             files={"file": ("audio.webm", audio_bytes, "audio/webm")},
             data={
-                "model": "whisper-large-v3",
+                "model": config["model"],
                 "language": "ja",
                 "prompt": "ねえクロード、今日の天気は？おはよう。",
             },
         )
         resp.raise_for_status()
         text = resp.json().get("text", "").strip()
-    logger.info("[STT] groq認識: %s", text or "(空)")
+    logger.info("[STT] %s認識: %s", _STT_BACKEND, text or "(空)")
     return text
 
 
@@ -79,8 +95,8 @@ async def _transcribe_local(audio_bytes: bytes) -> str:
 # ── 共通インターフェース ───────────────────────────────────────────────────────
 
 async def transcribe(audio_bytes: bytes) -> str:
-    if _STT_BACKEND == "groq":
-        return await _transcribe_groq(audio_bytes)
+    if _STT_BACKEND in ("openai", "groq"):
+        return await _transcribe_api(audio_bytes)
     return await _transcribe_local(audio_bytes)
 
 
