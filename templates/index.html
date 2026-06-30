@@ -24,19 +24,8 @@ body {
   user-select: none;
 }
 
-/* ── スリープオーバーレイ ── */
-#sleep-overlay {
-  position: fixed;
-  inset: 0;
-  background: #000;
-  z-index: 50;
-  cursor: pointer;
-  transition: opacity 0.6s;
-}
-#sleep-overlay.hidden {
-  opacity: 0;
-  pointer-events: none;
-}
+/* ── スリープオーバーレイ（無効化） ── */
+#sleep-overlay { display: none; }
 
 /* ── 通常表示 ── */
 #clock-view {
@@ -455,8 +444,6 @@ if ('serviceWorker' in navigator) {
 }
 
 setMicState('idle');
-// 起動直後はスリープ状態（タップで起こす）
-sleepScreen();
 </script>
 </body>
 </html>
