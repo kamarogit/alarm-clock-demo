@@ -76,6 +76,86 @@ https://localhost:8001
 
 ---
 
+## 公開デプロイ（デモURL共有用）
+
+VMにデプロイして外部公開すると、デモURLを渡すだけでブラウザから即アクセスできる。
+Cloudflare Tunnel 経由なので HTTPS が自動でかかり、マイクも動く。
+
+### 1. VMにデプロイ
+
+```bash
+git clone https://github.com/kamarogit/alarm-clock-demo.git
+cd alarm-clock-demo
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+nano .env  # DIFY_API_KEY を設定（DIFY_URL は https://api.dify.ai のまま）
+```
+
+### 2. SSL証明書生成（uvicorn直接起動の場合）
+
+nginx経由で公開する場合は不要。
+
+```bash
+openssl req -x509 -newkey rsa:4096 -nodes \
+  -keyout key.pem -out cert.pem -days 3650 \
+  -subj "/CN=alarm-clock"
+```
+
+### 3. Whisperモデルの事前ダウンロード
+
+```bash
+source venv/bin/activate
+python3 -c "from faster_whisper import WhisperModel; WhisperModel('small', device='cpu', compute_type='int8'); print('完了')"
+```
+
+### 4. systemdサービス登録（HTTPで起動・nginxにHTTPS終端させる）
+
+```bash
+sudo tee /etc/systemd/system/alarm-clock-demo.service > /dev/null << 'EOF'
+[Unit]
+Description=AI Talking Assistant Demo
+After=network.target
+
+[Service]
+Type=simple
+User=kamaro
+WorkingDirectory=/home/kamaro/alarm-clock-demo
+ExecStart=/home/kamaro/alarm-clock-demo/venv/bin/uvicorn main:app \
+  --host 0.0.0.0 --port 8001
+Restart=on-failure
+RestartSec=5
+EnvironmentFile=/home/kamaro/alarm-clock-demo/.env
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable alarm-clock-demo
+sudo systemctl start alarm-clock-demo
+```
+
+### 5. nginx-proxy にルート登録
+
+```bash
+API_KEY=$(cat ~/.route-api-key)
+curl -X POST http://192.168.100.50:8888/routes \
+  -H "x-api-key: $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"alarm-demo","path":"/alarm-demo","target":"http://<VM_IP>:8001"}'
+```
+
+デモURL: `https://homelab.urayaha.tokyo/alarm-demo`
+
+> ROOT_PATH を `.env` に設定するのを忘れずに:
+> ```
+> ROOT_PATH=/alarm-demo
+> ```
+
+---
+
 ## Difyアプリの設定
 
 Dify側のシステムプロンプトに以下を必ず追記:
